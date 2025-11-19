@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Firebase Realtime DB — Multi‑Tools (Single Page)</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;}
+    body{margin:0;padding:18px;background:#0f172a;color:#e6eef8}
+    h1{margin:0 0 12px;font-size:20px}
+    .wrap{display:grid;grid-template-columns:360px 1fr;gap:16px}
+    .card{background:linear-gradient(180deg,#0b1220, #071026);padding:12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,.6)}
+    label{display:block;font-size:12px;margin-top:8px;color:#9fb0d9}
+    input[type=text],textarea,select{width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);color:inherit;font-size:13px}
+    textarea{height:110px;resize:vertical}
+    button{margin-top:8px;padding:8px 10px;border-radius:8px;border:0;background:#2563eb;color:white;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,.06);}
+    pre{white-space:pre-wrap;background:rgba(255,255,255,.02);padding:10px;border-radius:8px;overflow:auto}
+    .row{display:flex;gap:8px}
+    .small{font-size:12px;color:#9fb0d9}
+    .log{height:180px;overflow:auto;background:#071428;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.02)}
+    .tools{display:grid;gap:8px}
+    .full{grid-column:1/-1}
+    .status{display:flex;align-items:center;gap:8px}
+    .tag{padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.03);font-size:12px}
+    footer{margin-top:12px;font-size:12px;color:#9fb0d9}
+  </style>
+</head>
+<body>
+  <h1>Firebase Realtime DB — Multi‑Tools (Single Page)</h1>
+  <div class="wrap">
+    <div class="card">
+      <div class="status">
+        <div class="tag" id="connStatus">Disconnected</div>
+        <div class="small" id="projectId">project: (not connected)</div>
+      </div>
+
+      <div style="margin-top:12px" class="tools">
+        <div>
+          <label>Firebase config (keeps your provided config) — edit if needed</label>
+          <textarea id="firebaseConfig" spellcheck="false">{
+  apiKey: "AIzaSyDeW5eltVUrNSVDaGNEHvtFWh5lJA7P0lk",
+  authDomain: "scoopcast-cb1f1.firebaseapp.com",
+  databaseURL: "https://scoopcast-cb1f1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "scoopcast-cb1f1",
+  storageBucket: "scoopcast-cb1f1.firebasestorage.app",
+  messagingSenderId: "3818639314",
+  appId: "1:3818639314:web:fb2e5d4fa770c9b49c420b",
+  measurementId: "G-628L9JT4CV"
+}</textarea>
+          <div class="row">
+            <button id="connectBtn">Connect / Reinit</button>
+            <button id="disconnectBtn" class="ghost">Stop listeners</button>
+          </div>
+          <div class="small">Note: this file is a local testing tool — do not use in production without proper security rules.</div>
+        </div>
+
+        <div>
+          <label>Path (use `/` for root)</label>
+          <input id="path" type="text" value="/" />
+        </div>
+
+        <div>
+          <label>Write (set) — will replace the value at path</label>
+          <textarea id="setValue" placeholder='e.g. {"name":"alice","age":30}'></textarea>
+          <div class="row">
+            <button id="btnSet">Set Value</button>
+            <button id="btnPush">Push (append)</button>
+            <button id="btnUpdate">Partial Update</button>
+            <button id="btnRemove" class="ghost">Delete</button>
+          </div>
+        </div>
+
+        <div>
+          <label>Import JSON (applies to path with set)</label>
+          <textarea id="importJSON" placeholder='{ "x": 1 }'></textarea>
+          <div class="row">
+            <button id="applyImport">Apply Import (Set)</button>
+            <button id="previewImport" class="ghost">Preview</button>
+          </div>
+        </div>
+
+        <div>
+          <label>Query / Read</label>
+          <div class="row">
+            <input id="queryChild" type="text" placeholder="orderByChild (optional)" />
+            <input id="queryLimit" type="text" placeholder="limitToFirst (optional)" />
+          </div>
+          <div class="row">
+            <button id="btnGet">Get Once</button>
+            <button id="btnSubscribe">Subscribe (onValue)</button>
+            <button id="btnUnsubscribe" class="ghost">Unsubscribe</button>
+            <button id="btnExport" class="ghost">Export JSON</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        <div style="flex:1">
+          <label>Live Snapshot / Output</label>
+          <pre id="output">No data yet.</pre>
+        </div>
+        <div style="width:260px">
+          <label>Realtime logs</label>
+          <div class="log" id="logs"></div>
+          <div class="row" style="margin-top:8px">
+            <button id="clearLogs" class="ghost">Clear</button>
+            <button id="downloadLog" class="ghost">Download</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Child Added stream (append-only)</label>
+        <pre id="childAdded">(no child_added events)</pre>
+      </div>
+
+      <footer>
+        Tip: Use the Path field to target a subtree. To push under `/messages` set Path to `/messages` and click Push.
+      </footer>
+    </div>
+  </div>
+
+  <script type="module">
+    // CDN modular imports (Firebase v9+)
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.31.0/firebase-app.js';
+    import { getAnalytics } from 'https://www.gstatic.com/firebasejs/9.31.0/firebase-analytics.js';
+    import {
+      getDatabase, ref, set, push, update, remove, get, child, onValue, onChildAdded, off, query, orderByChild, limitToFirst
+    } from 'https://www.gstatic.com/firebasejs/9.31.0/firebase-database.js';
+
+    // UI refs
+    const connStatus = document.getElementById('connStatus');
+    const projectId = document.getElementById('projectId');
+    const firebaseConfigEl = document.getElementById('firebaseConfig');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+
+    const pathEl = document.getElementById('path');
+    const setValueEl = document.getElementById('setValue');
+    const importJSONEl = document.getElementById('importJSON');
+    const btnSet = document.getElementById('btnSet');
+    const btnPush = document.getElementById('btnPush');
+    const btnUpdate = document.getElementById('btnUpdate');
+    const btnRemove = document.getElementById('btnRemove');
+
+    const queryChild = document.getElementById('queryChild');
+    const queryLimit = document.getElementById('queryLimit');
+    const btnGet = document.getElementById('btnGet');
+    const btnSubscribe = document.getElementById('btnSubscribe');
+    const btnUnsubscribe = document.getElementById('btnUnsubscribe');
+    const btnExport = document.getElementById('btnExport');
+
+    const output = document.getElementById('output');
+    const logs = document.getElementById('logs');
+    const childAdded = document.getElementById('childAdded');
+    const clearLogs = document.getElementById('clearLogs');
+    const downloadLog = document.getElementById('downloadLog');
+
+    let app = null;
+    let analytics = null;
+    let db = null;
+    let valueUnsubscribe = null;
+    let childAddedUnsub = null;
+
+    function log(...args){
+      const time = new Date().toISOString();
+      logs.innerText = `${time} — ${args.map(a=>{
+        try{return typeof a === 'string' ? a : JSON.stringify(a)}catch(e){return String(a)}
+      }).join(' ')}\n` + logs.innerText;
+    }
+
+    function setStatus(ok, text){
+      connStatus.innerText = ok ? 'Connected' : 'Disconnected';
+      connStatus.style.background = ok ? 'linear-gradient(90deg,#052c6b,#0b6adf)' : 'transparent';
+      projectId.innerText = text || '';
+    }
+
+    function parseConfig(){
+      try{
+        // allow both object literal and JSON
+        const raw = firebaseConfigEl.value.trim();
+        // if it starts with { and contains apiKey it's an object literal; evaluate safely by replacing single quotes -> double and wrapping
+        const obj = (new Function('return (' + raw + ')'))();
+        return obj;
+      }catch(e){
+        alert('Invalid config JSON/object. Fix it then try again.');
+        throw e;
+      }
+    }
+
+    connectBtn.addEventListener('click', ()=>{
+      try{
+        const cfg = parseConfig();
+        if(app){
+          // try to clean up
+          try{ off(); }catch(e){}
+        }
+        app = initializeApp(cfg);
+        try{ analytics = getAnalytics(app); }catch(e){}
+        db = getDatabase(app);
+        setStatus(true, 'project: ' + (cfg.projectId||'(unknown)'));
+        log('Initialized app', cfg.projectId || '(no id)');
+      }catch(e){
+        setStatus(false);
+        log('Connect failed', e.message || e);
+      }
+    });
+
+    disconnectBtn.addEventListener('click', ()=>{
+      // stop listeners — unsubscribe handlers
+      if(valueUnsubscribe){ valueUnsubscribe(); valueUnsubscribe = null; }
+      if(childAddedUnsub){ childAddedUnsub(); childAddedUnsub = null; }
+      setStatus(false, 'project: (listeners stopped)');
+      log('Listeners stopped');
+    });
+
+    function now(){return new Date().toISOString()}
+
+    btnSet.addEventListener('click', async ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        const raw = setValueEl.value.trim();
+        let val = raw ? JSON.parse(raw) : null;
+        await set(ref(db, p), val);
+        log('Set', p, val);
+      }catch(e){ log('Set failed', e.message || e); alert(e.message) }
+    });
+
+    btnPush.addEventListener('click', async ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        const raw = setValueEl.value.trim();
+        const val = raw ? JSON.parse(raw) : {createdAt: now()};
+        const pushed = await push(ref(db, p), val);
+        log('Pushed to', p, 'key=' + pushed.key, val);
+      }catch(e){ log('Push failed', e.message || e); alert(e.message) }
+    });
+
+    btnUpdate.addEventListener('click', async ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        const raw = setValueEl.value.trim();
+        const val = raw ? JSON.parse(raw) : {};
+        await update(ref(db, p), val);
+        log('Updated', p, val);
+      }catch(e){ log('Update failed', e.message || e); alert(e.message) }
+    });
+
+    btnRemove.addEventListener('click', async ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        if(!confirm('Delete node at ' + p + '? This is irreversible.')) return;
+        await remove(ref(db, p));
+        log('Removed', p);
+      }catch(e){ log('Remove failed', e.message || e); alert(e.message) }
+    });
+
+    btnGet.addEventListener('click', async ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        let queryRef = ref(db, p);
+        const childKey = queryChild.value.trim();
+        const lim = queryLimit.value.trim();
+        if(childKey) queryRef = query(queryRef, orderByChild(childKey));
+        if(lim){ queryRef = query(queryRef, limitToFirst(Number(lim))); }
+        const snap = await get(queryRef);
+        const val = snap.exists() ? snap.val() : null;
+        output.innerText = JSON.stringify(val, null, 2);
+        log('Get', p, val);
+      }catch(e){ log('Get failed', e.message || e); alert(e.message) }
+    });
+
+    btnSubscribe.addEventListener('click', ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        const qChild = queryChild.value.trim();
+        const lim = queryLimit.value.trim();
+        let r = ref(db, p);
+        if(qChild || lim){
+          r = query(r, qChild ? orderByChild(qChild) : (r), lim ? limitToFirst(Number(lim)) : (r));
+        }
+        if(valueUnsubscribe) { log('Already subscribed — unsubscribing previous'); valueUnsubscribe(); }
+        valueUnsubscribe = onValue(r, snap=>{
+          const val = snap.exists() ? snap.val() : null;
+          output.innerText = JSON.stringify(val, null, 2);
+          log('onValue', p, val);
+        }, err=>{ log('onValue error', err.message || err) });
+
+        // child_added listener (separate)
+        if(childAddedUnsub) childAddedUnsub();
+        childAddedUnsub = onChildAdded(ref(db, p), snap=>{
+          const v = snap.val();
+          const existing = childAdded.innerText;
+          childAdded.innerText = JSON.stringify({key:snap.key, val:v}, null, 2) + '\n' + existing;
+        });
+
+        log('Subscribed to', p);
+        setStatus(true, 'subscribed: ' + p);
+      }catch(e){ log('Subscribe failed', e.message || e); alert(e.message) }
+    });
+
+    btnUnsubscribe.addEventListener('click', ()=>{
+      try{
+        if(valueUnsubscribe){ valueUnsubscribe(); valueUnsubscribe = null; }
+        if(childAddedUnsub){ childAddedUnsub(); childAddedUnsub = null; }
+        log('Unsubscribed');
+      }catch(e){ log('Unsubscribe failed', e.message || e) }
+    });
+
+    btnExport.addEventListener('click', async ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        const snap = await get(ref(db, p));
+        const val = snap.exists() ? snap.val() : null;
+        const txt = JSON.stringify(val, null, 2);
+        // download
+        const blob = new Blob([txt], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = (p.replace(/\//g,'_')||'export') + '.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        log('Exported', p);
+      }catch(e){ log('Export failed', e.message || e); alert(e.message) }
+    });
+
+    document.getElementById('applyImport').addEventListener('click', async ()=>{
+      try{
+        if(!db) throw new Error('Not connected');
+        const p = pathEl.value || '/';
+        const raw = importJSONEl.value.trim();
+        if(!raw) { alert('Empty import'); return; }
+        const val = JSON.parse(raw);
+        if(!confirm('Apply import (set) to ' + p + '? This will replace the node.')) return;
+        await set(ref(db, p), val);
+        log('Import applied to', p);
+      }catch(e){ log('Import failed', e.message || e); alert(e.message) }
+    });
+
+    document.getElementById('previewImport').addEventListener('click', ()=>{
+      try{
+        const raw = importJSONEl.value.trim();
+        if(!raw) { alert('Nothing to preview'); return; }
+        const val = JSON.parse(raw);
+        output.innerText = JSON.stringify(val, null, 2);
+        log('Preview import');
+      }catch(e){ log('Preview failed', e.message || e); alert(e.message) }
+    });
+
+    clearLogs.addEventListener('click', ()=>{ logs.innerText = ''; });
+    downloadLog.addEventListener('click', ()=>{
+      const blob = new Blob([logs.innerText || ''], {type:'text/plain'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='rtdb-logs.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // quick connect on load (you can click Connect to re-init if you edited config)
+    try{ /* no auto-init - require button click to avoid accidental calls */ }catch(e){}
+
+  </script>
+</body>
+</html>
