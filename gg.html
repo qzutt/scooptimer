@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Comment Stream</title>
+    <!-- Tailwind CSS for instant styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+
+    <div class="max-w-2xl mx-auto p-4 md:p-8">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-indigo-600 tracking-tight">Community Chatter</h1>
+            <p class="text-slate-500 mt-2">Join the conversation. Realtime.</p>
+        </header>
+
+        <!-- Input Area -->
+        <div class="bg-white p-6 rounded-xl shadow-md border border-slate-100 mb-8">
+            <div class="grid gap-4">
+                <div class="grid grid-cols-3 gap-4">
+                    <!-- Username Input -->
+                    <div class="col-span-3 sm:col-span-1">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Alias</label>
+                        <input type="text" id="username-input" placeholder="Anonymous" maxlength="15"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                </div>
+
+                <!-- Comment Box -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Message</label>
+                    <textarea id="comment-input" rows="3" placeholder="What are you thinking?" maxlength="280"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition resize-none"></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end">
+                    <button id="submit-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg shadow transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span>Post Comment</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feed Divider -->
+        <div class="flex items-center gap-4 mb-6">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Live Feed</span>
+            <div class="h-px flex-1 bg-slate-200"></div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loader" class="flex justify-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+
+        <!-- Comments Container -->
+        <div id="comments-container" class="space-y-4">
+            <!-- Comments get injected here via JS -->
+        </div>
+        
+        <div id="empty-state" class="hidden text-center py-12 text-slate-400">
+            <p>No comments yet. Be the first!</p>
+        </div>
+    </div>
+
+    <!-- Firebase & App Logic -->
+    <script type="module">
+        // Import from CDN for simple single-file usage (VS Code might lint error, but this works in browser)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        // Note: Analytics removed for simplified local dev, re-add if needed.
+
+        // --- Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDeW5eltVUrNSVDaGNEHvtFWh5lJA7P0lk",
+            authDomain: "scoopcast-cb1f1.firebaseapp.com",
+            databaseURL: "https://scoopcast-cb1f1-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "scoopcast-cb1f1",
+            storageBucket: "scoopcast-cb1f1.firebasestorage.app",
+            messagingSenderId: "3818639314",
+            appId: "1:3818639314:web:fb2e5d4fa770c9b49c420b",
+            measurementId: "G-628L9JT4CV"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- DOM Elements ---
+        const btn = document.getElementById('submit-btn');
+        const commentInput = document.getElementById('comment-input');
+        const usernameInput = document.getElementById('username-input');
+        const list = document.getElementById('comments-container');
+        const loader = document.getElementById('loader');
+        const emptyState = document.getElementById('empty-state');
+
+        // --- Logic: Time Formatting ---
+        function timeAgo(timestamp) {
+            if(!timestamp) return 'just now';
+            const seconds = Math.floor((Date.now() - timestamp) / 1000);
+            let interval = seconds / 31536000;
+            if (interval > 1) return Math.floor(interval) + "y ago";
+            interval = seconds / 2592000;
+            if (interval > 1) return Math.floor(interval) + "mo ago";
+            interval = seconds / 86400;
+            if (interval > 1) return Math.floor(interval) + "d ago";
+            interval = seconds / 3600;
+            if (interval > 1) return Math.floor(interval) + "h ago";
+            interval = seconds / 60;
+            if (interval > 1) return Math.floor(interval) + "m ago";
+            return "Just now";
+        }
+
+        // --- Logic: Prevent XSS ---
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, (m) => map[m]);
+        }
+
+        // --- Logic: Render a single comment HTML ---
+        function createCommentHTML(id, data) {
+            // Fallbacks
+            const name = data.username ? escapeHtml(data.username) : "Anonymous";
+            const text = escapeHtml(data.text);
+            const time = timeAgo(data.timestamp);
+            const score = data.score || 0;
+            
+            // Assign colors based on score
+            const scoreColor = score > 0 ? 'text-indigo-600' : (score < 0 ? 'text-red-500' : 'text-slate-400');
+
+            return `
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 transition hover:shadow-md flex gap-4" id="comment-${id}">
+                <!-- Voting Side -->
+                <div class="flex flex-col items-center gap-1">
+                    <button onclick="window.vote('${id}', 1)" class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                    </button>
+                    
+                    <span class="text-sm font-bold ${scoreColor}" id="score-${id}">${score}</span>
+                    
+                    <button onclick="window.vote('${id}', -1)" class="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-red-500 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                    </button>
+                </div>
+
+                <!-- Content Side -->
+                <div class="flex-1">
+                    <div class="flex justify-between items-baseline mb-1">
+                        <h4 class="font-bold text-slate-700 text-sm">${name}</h4>
+                        <span class="text-xs text-slate-400">${time}</span>
+                    </div>
+                    <p class="text-slate-600 text-sm leading-relaxed break-words whitespace-pre-line">${text}</p>
+                </div>
+            </div>
+            `;
+        }
+
+        // --- Interaction: Post Comment ---
+        btn.addEventListener('click', () => {
+            const text = commentInput.value.trim();
+            let username = usernameInput.value.trim();
+            if(!username) username = "Anonymous";
+
+            if (!text) {
+                alert("Please enter a message!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = 'Posting...';
+
+            // Push to Firebase
+            push(ref(db, 'comments'), {
+                username: username,
+                text: text,
+                score: 0,
+                timestamp: serverTimestamp()
+            })
+            .then(() => {
+                // Clear Input on success
+                commentInput.value = '';
+                btn.disabled = false;
+                btn.innerHTML = `
+                <span>Post Comment</span>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>`;
+            })
+            .catch((err) => {
+                console.error(err);
+                alert("Error posting comment");
+                btn.disabled = false;
+            });
+        });
+
+        // --- Interaction: Voting (Global Function) ---
+        // Attached to window so onclick in HTML strings works
+        window.vote = function(commentId, delta) {
+            const commentRef = ref(db, `comments/${commentId}/score`);
+            
+            // Transaction for Atomic updates
+            runTransaction(commentRef, (currentScore) => {
+                return (currentScore || 0) + delta;
+            });
+        };
+
+        // --- Realtime Listener ---
+        const commentsRef = ref(db, 'comments');
+        
+        onValue(commentsRef, (snapshot) => {
+            loader.style.display = 'none';
+            const data = snapshot.val();
+
+            if (!data) {
+                list.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            // Convert object to array and sort (Newest first)
+            const commentArray = Object.entries(data).map(([key, value]) => ({
+                id: key,
+                ...value
+            })).sort((a, b) => {
+                // Sort: prioritize new timestamp, handle null timestamps (local writes)
+                return (b.timestamp || Date.now()) - (a.timestamp || Date.now());
+            });
+
+            // Render
+            list.innerHTML = commentArray.map(comment => createCommentHTML(comment.id, comment)).join('');
+        });
+    </script>
+</body>
+</html>
