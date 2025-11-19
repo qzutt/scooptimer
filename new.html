@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Global Live Counter — debug</title>
+  <style>
+    body{font-family:Inter,system-ui,Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f3f6fb}
+    .card{background:#fff;padding:28px;border-radius:12px;box-shadow:0 8px 30px rgba(20,30,60,0.08);width:380px;text-align:center}
+    h1{margin:0 0 8px;font-size:20px}
+    .count{font-size:56px;margin:12px 0;font-weight:700}
+    .btn{padding:12px 18px;border-radius:10px;border:0;font-weight:700;cursor:pointer}
+    #inc{background:#0b76ef;color:#fff;margin-right:10px}
+    #reset{background:#64748b;color:#fff}
+    .status{margin-top:12px;font-size:13px;color:#444;white-space:pre-wrap}
+    footer{margin-top:14px;font-size:12px;color:#666}
+    code{background:#eef;padding:2px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Global Live Counter</h1>
+    <div class="count" id="count">—</div>
+    <div>
+      <button class="btn" id="inc">+ Increase</button>
+      <button class="btn" id="reset">Reset</button>
+    </div>
+    <div class="status" id="status">Initializing…</div>
+    <footer>Path: <code>/globalCounter/value</code></footer>
+  </div>
+
+  <script type="module">
+    // Modular SDK (CDN)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, onValue, runTransaction, set } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    // <-- your firebaseConfig (use the one you already have) -->
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeW5eltVUrNSVDaGNEHvtFWh5lJA7P0lk",
+      authDomain: "scoopcast-cb1f1.firebaseapp.com",
+      databaseURL: "https://scoopcast-cb1f1-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "scoopcast-cb1f1",
+      storageBucket: "scoopcast-cb1f1.firebasestorage.app",
+      messagingSenderId: "3818639314",
+      appId: "1:3818639314:web:fb2e5d4fa770c9b49c420b",
+      measurementId: "G-628L9JT4CV"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    const countEl = document.getElementById('count');
+    const statusEl = document.getElementById('status');
+    const incBtn = document.getElementById('inc');
+    const resetBtn = document.getElementById('reset');
+
+    const counterRef = ref(db, '/globalCounter/value');
+
+    // 1) Attach realtime listener IMMEDIATELY so UI updates even if auth is failing.
+    onValue(counterRef, snap => {
+      const v = snap.val();
+      countEl.textContent = (v === null) ? '0' : String(v);
+      statusEl.textContent = 'Live — DB value: ' + ((v === null) ? 0 : v) + '\n(See console for detailed logs.)';
+      console.log('[onValue] snapshot:', v);
+    }, err => {
+      console.error('[onValue] error:', err);
+      statusEl.textContent = 'Realtime listener error: ' + err.code + ' — ' + err.message;
+    });
+
+    // 2) Attempt anonymous sign-in (recommended to keep writes secure)
+    signInAnonymously(auth)
+      .then(() => {
+        console.log('Requested anonymous sign-in (success promise).');
+      })
+      .catch(err => {
+        console.error('Anonymous sign-in failed:', err.code, err.message);
+        // show friendly message but keep the onValue active so reads work
+        statusEl.textContent = 'Auth error: ' + err.code + ' — ' + err.message + '\nReads still active; writes may be blocked if rules require auth.';
+      });
+
+    onAuthStateChanged(auth, user => {
+      console.log('Auth state changed:', user);
+      if (user) {
+        statusEl.textContent = 'Authenticated (uid: ' + user.uid + ') — Live';
+      } else {
+        // user is null for not signed in
+        statusEl.textContent = 'Not authenticated — still listening for DB updates.';
+      }
+    });
+
+    // 3) Safe increment using transaction; show errors clearly
+    async function increment(delta = 1) {
+      try {
+        const result = await runTransaction(counterRef, (current) => {
+          if (current === null) return delta;
+          return current + delta;
+        });
+        console.log('Transaction finished:', result);
+      } catch (e) {
+        console.error('Transaction failed:', e);
+        statusEl.textContent = 'Update failed: ' + (e.code || '') + ' ' + e.message;
+      }
+    }
+
+    incBtn.addEventListener('click', () => increment(1));
+
+    resetBtn.addEventListener('click', async () => {
+      try {
+        await set(counterRef, 0);
+        console.log('Reset to 0 succeeded');
+      } catch (e) {
+        console.error('Reset failed:', e);
+        statusEl.textContent = 'Reset failed: ' + (e.code || '') + ' ' + e.message;
+      }
+    });
+
+    // debug line
+    console.log('App initialized. DB URL:', db._databaseURL || '(unknown)');
+  </script>
+</body>
+</html>
