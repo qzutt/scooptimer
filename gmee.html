@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Global Live Counter</title>
+  <style>
+    body{font-family:Inter,system-ui,Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f3f6fb}
+    .card{background:#fff;padding:28px;border-radius:12px;box-shadow:0 8px 30px rgba(20,30,60,0.08);width:360px;text-align:center}
+    h1{margin:0 0 8px;font-size:20px}
+    .count{font-size:56px;margin:12px 0;font-weight:700}
+    .btn{padding:12px 18px;border-radius:10px;border:0;font-weight:700;cursor:pointer}
+    #inc{background:#0b76ef;color:#fff;margin-right:10px}
+    #reset{background:#64748b;color:#fff}
+    .status{margin-top:12px;font-size:13px;color:#444}
+    footer{margin-top:14px;font-size:12px;color:#666}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Global Live Counter</h1>
+    <div class="count" id="count">—</div>
+    <div>
+      <button class="btn" id="inc">+ Increase</button>
+      <button class="btn" id="reset">Reset</button>
+    </div>
+    <div class="status" id="status">Connecting…</div>
+    <footer>Path: <code>/globalCounter/value</code></footer>
+  </div>
+
+  <script type="module">
+    // CDN imports for Firebase modular SDK
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getDatabase, ref, onValue, runTransaction, set } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    // <-- Replace with YOUR firebaseConfig if different -->
+    const firebaseConfig = {
+      apiKey: "AIzaSyDeW5eltVUrNSVDaGNEHvtFWh5lJA7P0lk",
+      authDomain: "scoopcast-cb1f1.firebaseapp.com",
+      databaseURL: "https://scoopcast-cb1f1-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "scoopcast-cb1f1",
+      storageBucket: "scoopcast-cb1f1.firebasestorage.app",
+      messagingSenderId: "3818639314",
+      appId: "1:3818639314:web:fb2e5d4fa770c9b49c420b",
+      measurementId: "G-628L9JT4CV"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    const countEl = document.getElementById('count');
+    const statusEl = document.getElementById('status');
+    const incBtn = document.getElementById('inc');
+    const resetBtn = document.getElementById('reset');
+
+    // database reference for global counter
+    const counterRef = ref(db, '/globalCounter/value');
+
+    // Sign in anonymously so the safer DB rules (auth != null) allow writes.
+    signInAnonymously(auth).catch(err => {
+      console.error('Anonymous sign-in failed', err);
+      statusEl.textContent = 'Auth error: ' + err.message;
+    });
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        // user.uid available if needed
+        statusEl.textContent = 'Authenticated (anonymous). Waiting for DB...';
+        startRealtime();
+      } else {
+        statusEl.textContent = 'Not authenticated';
+      }
+    });
+
+    function startRealtime() {
+      // Listen for live updates
+      onValue(counterRef, snap => {
+        const v = snap.val();
+        countEl.textContent = (v === null) ? '0' : String(v);
+        statusEl.textContent = 'Live — last value: ' + ((v === null) ? 0 : v);
+      }, err => {
+        console.error('onValue error', err);
+        statusEl.textContent = 'DB error: ' + err.message;
+      });
+    }
+
+    // Use transaction for safe concurrent updates
+    async function increment(delta = 1) {
+      try {
+        await runTransaction(counterRef, (current) => {
+          if (current === null) return delta;
+          return current + delta;
+        });
+      } catch (e) {
+        console.error('Transaction failed', e);
+        statusEl.textContent = 'Update failed: ' + e.message;
+      }
+    }
+
+    incBtn.addEventListener('click', () => increment(1));
+    resetBtn.addEventListener('click', async () => {
+      try {
+        await set(counterRef, 0);
+      } catch (e) {
+        console.error('Reset failed', e);
+        statusEl.textContent = 'Reset failed: ' + e.message;
+      }
+    });
+
+    // Optional: quick console log so you can debug easier
+    console.log('Firebase app initialized with DB URL:', db._databaseURL || '(unknown)');
+  </script>
+</body>
+</html>
