@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>★☆ SECRET BBS ACCESS ☆★</title>
+    <style>
+        /* --- RETRO THEME STYLES --- */
+        body {
+            background-color: #ffebeb;
+            font-family: "MS PGothic", "Hiragino Kaku Gothic Pro", monospace;
+            font-size: 14px;
+            color: #444;
+            margin: 0;
+            padding: 0;
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAIklEQVQIW2NkQAKrVq36zwjjgzhhYWGMYAEYB8RmROaABADeOQ8CXl/xfgAAAABJRU5ErkJggg==');
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-screen {
+            width: 100%;
+            max-width: 400px;
+            height: 100vh;
+            max-height: 800px; /* Simulator limit */
+            background: #fff;
+            border: 4px solid #ff99cc;
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 5px 5px 0px #ccaabb;
+            overflow-y: auto; /* Allow scrolling */
+        }
+
+        /* Common Utils */
+        .hidden { display: none !important; }
+        .center { text-align: center; }
+        a { color: #0066ff; text-decoration: underline; cursor: pointer; }
+        a:hover { color: #ff0000; }
+
+        /* Inputs */
+        input, textarea {
+            background: #fafaff;
+            border: 1px inset #ccc;
+            font-family: "MS PGothic", monospace;
+            padding: 3px;
+            margin-bottom: 5px;
+            width: 80%;
+            font-size: 13px;
+        }
+
+        button {
+            background: #e0e0e0;
+            border: 1px outset #fff;
+            border-right: 1px solid #444;
+            border-bottom: 1px solid #444;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px 8px;
+        }
+        button:active { border: 1px inset #888; }
+
+        /* === AUTH SCREEN STYLES === */
+        .auth-header {
+            background: #6699cc;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 3px double #fff;
+        }
+        .auth-box {
+            padding: 20px;
+            text-align: center;
+            background: #eef;
+            margin: 10px;
+            border: 1px dotted #999;
+        }
+        .decor { font-size: 10px; color: #f0f; letter-spacing: 3px; }
+
+        /* === BBS SCREEN STYLES (From previous code) === */
+        .bbs-header {
+            background-color: #ffccdd;
+            color: #cc0066;
+            text-align: center;
+            padding: 5px;
+            border-bottom: 2px dashed #ff99cc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .post-area { background: #fcfcdf; border: 1px solid #bfbf00; padding: 8px; margin: 10px; }
+        .feed-area { padding: 10px; flex: 1; overflow-y: auto; }
+        .comment-box { margin-bottom: 15px; border-bottom: 1px dotted #999; padding-bottom: 5px; font-size:12px;}
+        .comment-meta { color: #cc3300; font-weight: bold; margin-bottom: 2px; }
+        .posted-img { display: block; max-width: 100px; border: 1px solid #444; margin: 5px 0; cursor: pointer;}
+        
+        /* Marquee */
+        .marquee-box { background:black; color:#0f0; padding:2px; font-size:12px; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="mobile-screen">
+        
+        <!-- ==============================
+             VIEW 1: AUTHENTICATION
+        ============================== -->
+        <div id="view-auth" class="">
+            <div class="marquee-box">
+                <marquee>LOGIN REQUIRED /// MEMBERS ONLY /// ENTER KEY</marquee>
+            </div>
+            <div class="auth-header">
+                ★ RESTRICTED AREA ★
+            </div>
+
+            <br><br>
+            <div class="center">
+                <div class="decor">********</div>
+                <img src="https://media1.tenor.com/m/ylj1P5wO3XMAAAAC/loading-buffering.gif" width="30" height="30"><br>
+                <b>SECURITY CHECK</b>
+                <div class="decor">********</div>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <div id="login-form" class="auth-box">
+                <b style="color:#00f">:: MEMBER LOGIN ::</b><br><br>
+                Email:<br> <input type="email" id="login-email"><br>
+                Pass:<br> <input type="password" id="login-pass"><br>
+                <button id="btn-login">[ ACCESS ]</button>
+                <div id="login-err" style="color:red; font-size:10px;"></div>
+                <br><br>
+                <hr style="border:0; border-top:1px dashed #999;">
+                <span style="font-size:10px;">No Account? <a onclick="switchAuthMode('verify')">I have an Invite Key</a></span>
+            </div>
+
+            <!-- KEY VERIFY -->
+            <div id="key-verify-form" class="auth-box hidden">
+                <b style="color:#f0f">:: INVITE KEY ::</b><br><br>
+                <span style="font-size:10px">Enter the secret key to join</span><br>
+                <input type="text" id="input-key" placeholder="KEY_XXXX" style="text-transform:uppercase"><br>
+                <button onclick="checkKey()">[ VERIFY KEY ]</button>
+                <div id="key-err" style="color:red; font-size:10px;"></div>
+                <br>
+                <span style="font-size:10px;"><a onclick="switchAuthMode('login')">Cancel</a></span>
+            </div>
+
+            <!-- SIGN UP (Only shown after key valid) -->
+            <div id="signup-form" class="auth-box hidden" style="background:#fffbe6;">
+                <b style="color:#f00">!! CREATE ID !!</b><br><br>
+                Email:<br> <input type="email" id="new-email"><br>
+                Password:<br> <input type="password" id="new-pass"><br>
+                <button id="btn-signup">[ REGISTER ]</button>
+                <div id="signup-err" style="color:red; font-size:10px;"></div>
+            </div>
+
+            <div class="center" style="margin-top:20px; font-size:10px; color:#888;">
+                Running on Firebase<br>v 1.0 BETA
+            </div>
+        </div>
+
+        <!-- ==============================
+             VIEW 2: THE BBS (APP)
+        ============================== -->
+        <div id="view-app" class="hidden">
+            <div class="bbs-header">
+                <span>★ SCOOPCAST BBS ★</span>
+                <button onclick="doLogout()" style="font-size:9px; padding:1px;">LOGOUT</button>
+            </div>
+            
+            <!-- INPUT -->
+            <div class="post-area">
+                NAME: <input type="text" id="bbs-name" placeholder="Anonymous"><br>
+                TEXT: <textarea id="bbs-text" rows="2"></textarea><br>
+                PHOTO: <input type="file" id="bbs-file" style="width:95%"><br>
+                <div class="center">
+                    <button id="btn-post">v(^_^)v POST!</button>
+                </div>
+                <div id="post-status" style="color:red; font-size:10px;"></div>
+            </div>
+
+            <!-- FEED -->
+            <div class="feed-area">
+                <div style="background:#000; color:white; font-size:10px; padding:2px;">▼ RECENT LOGS</div>
+                <div id="loading-feed" class="center" style="padding:20px;">Connecting...</div>
+                <div id="comments-container"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FIREBASE SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // 1. FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyDeW5eltVUrNSVDaGNEHvtFWh5lJA7P0lk",
+            authDomain: "scoopcast-cb1f1.firebaseapp.com",
+            databaseURL: "https://scoopcast-cb1f1-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "scoopcast-cb1f1",
+            storageBucket: "scoopcast-cb1f1.firebasestorage.app",
+            messagingSenderId: "3818639314",
+            appId: "1:3818639314:web:fb2e5d4fa770c9b49c420b",
+            measurementId: "G-628L9JT4CV"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        // 2. VALID KEYS LIST
+        const INVITE_KEYS = [
+            "AKIHABARA_2005",
+            "FLIP_PHONE_GO",
+            "CAT_EAR_MAID",
+            "NEO_TOKYO_77",
+            "SUPER_MIXI_KEY"
+        ];
+
+        // 3. UI STATE MANAGMENT
+        const viewAuth = document.getElementById('view-auth');
+        const viewApp = document.getElementById('view-app');
+        
+        // Toggle between Login form, Key check, and Signup
+        window.switchAuthMode = (mode) => {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('key-verify-form').classList.add('hidden');
+            document.getElementById('signup-form').classList.add('hidden');
+
+            if(mode === 'login') document.getElementById('login-form').classList.remove('hidden');
+            if(mode === 'verify') document.getElementById('key-verify-form').classList.remove('hidden');
+            if(mode === 'signup') document.getElementById('signup-form').classList.remove('hidden');
+            
+            // clear errors
+            document.getElementById('login-err').innerText = "";
+            document.getElementById('key-err').innerText = "";
+        };
+
+        // 4. AUTHENTICATION LOGIC
+
+        // Monitor State
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Logged In
+                viewAuth.classList.add('hidden');
+                viewApp.classList.remove('hidden');
+                // Load posts
+                startListeningToPosts();
+            } else {
+                // Logged Out
+                viewApp.classList.add('hidden');
+                viewAuth.classList.remove('hidden');
+                window.switchAuthMode('login');
+            }
+        });
+
+        // Check Key
+        window.checkKey = () => {
+            const input = document.getElementById('input-key').value.trim().toUpperCase();
+            const errDiv = document.getElementById('key-err');
+            
+            if(INVITE_KEYS.includes(input)) {
+                // Key Valid -> Show Signup
+                window.switchAuthMode('signup');
+            } else {
+                errDiv.innerText = "INVALID KEY! ACCESS DENIED.";
+            }
+        };
+
+        // Sign Up Action
+        document.getElementById('btn-signup').addEventListener('click', () => {
+            const email = document.getElementById('new-email').value;
+            const pass = document.getElementById('new-pass').value;
+            const errDiv = document.getElementById('signup-err');
+
+            createUserWithEmailAndPassword(auth, email, pass)
+                .then((userCredential) => {
+                    // Auto login triggers onAuthStateChanged
+                })
+                .catch((error) => {
+                    errDiv.innerText = "Error: " + error.message;
+                });
+        });
+
+        // Login Action
+        document.getElementById('btn-login').addEventListener('click', () => {
+            const email = document.getElementById('login-email').value;
+            const pass = document.getElementById('login-pass').value;
+            const errDiv = document.getElementById('login-err');
+
+            signInWithEmailAndPassword(auth, email, pass)
+                .then((userCredential) => {
+                    // Success
+                })
+                .catch((error) => {
+                    errDiv.innerText = "WRONG ID/PASS!";
+                });
+        });
+
+        // Logout Action
+        window.doLogout = () => {
+            signOut(auth);
+        }
+
+
+        // 5. APP LOGIC (POSTING & VOTING) - (Reused/Updated from previous)
+
+        // Image compressor
+        const processImage = (file) => {
+            return new Promise((resolve) => {
+                if(!file) resolve(null);
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const c = document.createElement('canvas');
+                        const MAX_W = 300; 
+                        let w = img.width; let h = img.height;
+                        if(w > MAX_W) { h *= MAX_W/w; w = MAX_W; }
+                        c.width = w; c.height = h;
+                        const ctx = c.getContext('2d');
+                        ctx.drawImage(img,0,0,w,h);
+                        resolve(c.toDataURL('image/jpeg', 0.6)); // Low quality retro
+                    }
+                    img.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Post
+        document.getElementById('btn-post').addEventListener('click', async () => {
+            const name = document.getElementById('bbs-name').value || "Anonymous";
+            const text = document.getElementById('bbs-text').value;
+            const file = document.getElementById('bbs-file').files[0];
+            const stat = document.getElementById('post-status');
+            const btn = document.getElementById('btn-post');
+
+            if(!text) return;
+            btn.disabled = true;
+            stat.innerText = "Transmitting...";
+
+            try {
+                let imgData = null;
+                if(file) {
+                    if(file.size > 3000000) { alert("Image too big!"); btn.disabled = false; return; }
+                    imgData = await processImage(file);
+                }
+
+                await push(ref(db, 'comments'), {
+                    user: auth.currentUser.email, // Tracking who posted (private in DB usually)
+                    name: name,
+                    text: text,
+                    img: imgData,
+                    score: 0,
+                    ts: serverTimestamp()
+                });
+
+                document.getElementById('bbs-text').value = "";
+                document.getElementById('bbs-file').value = "";
+                stat.innerText = "OK!";
+                setTimeout(()=> stat.innerText="", 1500);
+            } catch(e) {
+                stat.innerText = "Error: " + e.message;
+            }
+            btn.disabled = false;
+        });
+
+        // Global Vote
+        window.vote = (id, val) => {
+            runTransaction(ref(db, `comments/${id}/score`), (score) => (score||0) + val);
+        };
+
+        // Escape HTML
+        function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        function retroDate(ts) { 
+            if(!ts) return ""; 
+            const d = new Date(ts); 
+            return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+        }
+
+        // Listener
+        function startListeningToPosts() {
+            const cont = document.getElementById('comments-container');
+            onValue(ref(db, 'comments'), (snap) => {
+                document.getElementById('loading-feed').style.display = 'none';
+                cont.innerHTML = "";
+                const val = snap.val();
+                if(!val) { cont.innerHTML = "<div class='center'>No logs found.</div>"; return;}
+
+                const arr = Object.entries(val).sort((a,b)=> b[1].ts - a[1].ts);
+
+                arr.forEach(([k, v]) => {
+                    let imgHtml = v.img ? `<img src="${v.img}" class="posted-img" onclick="window.open('${v.img}')">` : "";
+                    
+                    let html = `
+                    <div class="comment-box">
+                        <div class="comment-meta">
+                            ★ ${esc(v.name)} <span style="color:#888; font-weight:normal;">(${retroDate(v.ts)})</span>
+                        </div>
+                        <div style="margin:5px 0;">
+                            ${esc(v.text).replace(/\n/g,'<br>')}
+                        </div>
+                        ${imgHtml}
+                        <div style="font-size:10px; margin-top:4px; color:#555;">
+                            [Pts: <b>${v.score||0}</b>] 
+                            <a onclick="vote('${k}', 1)">Up</a> 
+                            <a onclick="vote('${k}', -1)">Down</a>
+                        </div>
+                    </div>`;
+                    cont.innerHTML += html;
+                });
+            });
+        }
+
+    </script>
+</body>
+</html>
