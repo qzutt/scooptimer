@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>★☆ ScoopCast BBS ☆★</title>
+    <style>
+        body {
+            background-color: #ffebeb; /* Pale pink background */
+            font-family: "MS PGothic", "Hiragino Kaku Gothic Pro", monospace;
+            font-size: 14px;
+            color: #444;
+            margin: 0;
+            padding: 10px;
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAIklEQVQIW2NkQAKrVq36zwjjgzhhYWGMYAEYB8RmROaABADeOQ8CXl/xfgAAAABJRU5ErkJggg=='); /* Tiny dot pattern */
+        }
+
+        /* 2005 Container Style */
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #ff99cc;
+            padding: 5px;
+        }
+
+        /* Retro Header */
+        .header {
+            background-color: #ffccdd;
+            color: #cc0066;
+            text-align: center;
+            padding: 10px;
+            border-bottom: 2px dashed #ff99cc;
+            margin-bottom: 10px;
+        }
+
+        h1 { font-size: 18px; margin: 0; letter-spacing: 2px; }
+
+        /* The Form */
+        .post-form {
+            background: #fcfcdf; /* Light yellow */
+            border: 1px solid #bfbf00;
+            padding: 8px;
+            margin-bottom: 15px;
+            font-size: 12px;
+        }
+
+        input[type="text"], textarea {
+            border: 1px solid #888;
+            width: 95%;
+            padding: 2px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .submit-btn {
+            background-color: #ddd;
+            border-top: 2px solid #fff;
+            border-left: 2px solid #fff;
+            border-right: 2px solid #444;
+            border-bottom: 2px solid #444;
+            cursor: pointer;
+            padding: 2px 10px;
+            font-size: 12px;
+        }
+        .submit-btn:active { border: 2px inset #444; }
+
+        /* Feed Area */
+        .feed-title {
+            background-color: #6699cc;
+            color: white;
+            font-weight: bold;
+            padding: 2px 5px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .comment-box {
+            margin-bottom: 15px;
+            border-bottom: 1px dotted #999;
+            padding-bottom: 5px;
+        }
+
+        .comment-meta {
+            color: #cc3300;
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+        
+        .comment-meta .date { color: #999; font-weight: normal; font-size: 10px; }
+        .comment-body { margin: 4px 0; }
+        
+        /* Uploaded Image in comment */
+        .posted-img {
+            display: block;
+            max-width: 200px;
+            border: 2px solid #444;
+            margin: 5px 0;
+        }
+
+        /* Voting Links */
+        .vote-area { font-size: 10px; color: #666; }
+        .vote-link { color: blue; text-decoration: underline; cursor: pointer; margin-right: 5px; }
+        .vote-link:hover { color: red; }
+
+        .score-val { color: #333; font-weight: bold; }
+
+        /* Utilities */
+        .hidden { display: none; }
+        marquee { background: #000; color: #0f0; font-weight: bold; border: 1px solid #fff; margin-bottom: 5px; font-size: 12px;}
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Running text ticker -->
+        <marquee scrollamount="5">WELCOME TO SCOOPCAST BBS /// REALTIME UPDATES /// NO REFRESH NEEDED (*^ω^) /// POST PICS!</marquee>
+
+        <div class="header">
+            <h1>★☆ BOARD ☆★</h1>
+            <span style="font-size:10px">Est. 2025 - TOKYO SERVER</span>
+        </div>
+
+        <!-- Input Form -->
+        <div class="post-form">
+            <b>[WRITE NEW POST]</b><br><br>
+            NAME:<br>
+            <input type="text" id="username-input" value="Nameless" maxlength="15"><br>
+            MESSAGE:<br>
+            <textarea id="comment-input" rows="3" placeholder="Type here..."></textarea><br>
+            IMAGE (Optional):<br>
+            <input type="file" id="file-input" accept="image/*" style="font-size:10px"><br>
+            <br>
+            <div style="text-align: center;">
+                <button id="submit-btn" class="submit-btn">( ´ ▽ ` )b  POST !!</button>
+            </div>
+            <div id="status-msg" style="color:red; font-size:10px; margin-top:5px;"></div>
+        </div>
+
+        <!-- Comments List -->
+        <div class="feed-title">▼ LATEST POSTS</div>
+        
+        <div id="loading" style="text-align: center; padding: 20px;">Now Loading...</div>
+        <div id="comments-list"></div>
+        <div style="text-align:center; margin-top:20px; font-size:10px; color:#999;">
+            (c) SCOOPCAST All Rights Reserved.<br>
+            <a href="#" style="color:#999;">Privacy</a> - <a href="#" style="color:#999;">Top</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDeW5eltVUrNSVDaGNEHvtFWh5lJA7P0lk",
+            authDomain: "scoopcast-cb1f1.firebaseapp.com",
+            databaseURL: "https://scoopcast-cb1f1-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "scoopcast-cb1f1",
+            storageBucket: "scoopcast-cb1f1.firebasestorage.app",
+            messagingSenderId: "3818639314",
+            appId: "1:3818639314:web:fb2e5d4fa770c9b49c420b",
+            measurementId: "G-628L9JT4CV"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // DOM Elements
+        const btn = document.getElementById('submit-btn');
+        const statusMsg = document.getElementById('status-msg');
+        const feed = document.getElementById('comments-list');
+        const fileInput = document.getElementById('file-input');
+
+        // XSS Sanitizer
+        function escape(str) {
+            return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        // Date Formatter (Retro style)
+        function formatDate(ts) {
+            if(!ts) return "---";
+            const d = new Date(ts);
+            return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${d.getMinutes() < 10 ? '0'+d.getMinutes() : d.getMinutes()}`;
+        }
+
+        // IMAGE COMPRESSOR & CONVERTER
+        // Why? RTDB works best with small strings. Large Base64 strings crash simple implementations.
+        // This resizes image to 300px max width before encoding.
+        const processImage = (file) => {
+            return new Promise((resolve, reject) => {
+                if (!file) return resolve(null);
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        // MAX WIDTH 320px (Mobile retro size)
+                        const MAX_WIDTH = 320;
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        // Return JPEG at 0.7 quality
+                        resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                    img.src = event.target.result;
+                };
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        };
+
+        // SUBMIT LOGIC
+        btn.addEventListener('click', async () => {
+            const user = document.getElementById('username-input').value;
+            const text = document.getElementById('comment-input').value;
+            const file = fileInput.files[0];
+
+            if (!text) { statusMsg.innerText = "ERR: No Text Entered!"; return; }
+            
+            statusMsg.innerText = "Processing data... Please Wait...";
+            btn.disabled = true;
+
+            try {
+                // 1. Process Image if exists
+                let imageBase64 = null;
+                if(file) {
+                    if(file.size > 2000000) { // Basic client side check (2mb)
+                        alert("File too big! Please smaller than 2MB");
+                        btn.disabled = false;
+                        return;
+                    }
+                    imageBase64 = await processImage(file);
+                }
+
+                // 2. Push to Firebase
+                await push(ref(db, 'comments'), {
+                    name: user || "NoName",
+                    text: text,
+                    img: imageBase64, // Stores the base64 string
+                    score: 0,
+                    ts: serverTimestamp()
+                });
+
+                // 3. Cleanup
+                document.getElementById('comment-input').value = '';
+                fileInput.value = '';
+                statusMsg.innerText = "Post Successful!";
+                setTimeout(() => statusMsg.innerText = "", 2000);
+
+            } catch (e) {
+                console.error(e);
+                statusMsg.innerText = "COMMUNICATION ERROR";
+            }
+            btn.disabled = false;
+        });
+
+        // VOTE FUNCTION (Global for HTML onClick)
+        window.doVote = (id, val) => {
+            runTransaction(ref(db, `comments/${id}/score`), (score) => {
+                return (score || 0) + val;
+            });
+        };
+
+        // RENDER FEED
+        onValue(ref(db, 'comments'), (snapshot) => {
+            document.getElementById('loading').style.display = 'none';
+            feed.innerHTML = "";
+            
+            const data = snapshot.val();
+            if (!data) { feed.innerHTML = "<center>No posts yet...</center>"; return; }
+
+            // Convert object to array and reverse sort by Timestamp
+            const list = Object.entries(data).sort((a,b) => b[1].ts - a[1].ts);
+
+            list.forEach(([key, item], index) => {
+                // Generate Image Tag if data exists
+                const imgHtml = item.img 
+                    ? `<a href="${item.img}" target="_blank"><img src="${item.img}" class="posted-img"></a>` 
+                    : '';
+
+                const html = `
+                    <div class="comment-box">
+                        <div class="comment-meta">
+                            ${index + 1}. ${escape(item.name)} 
+                            <span class="date">[${formatDate(item.ts)}]</span>
+                        </div>
+                        <div class="comment-body">
+                            ${escape(item.text).replace(/\n/g, '<br>')}
+                            ${imgHtml}
+                        </div>
+                        <div class="vote-area">
+                            Points: <span class="score-val" id="s-${key}">${item.score || 0}</span> | 
+                            <span class="vote-link" onclick="doVote('${key}', 1)">[Up]</span> 
+                            <span class="vote-link" onclick="doVote('${key}', -1)">[Down]</span>
+                        </div>
+                    </div>
+                `;
+                feed.innerHTML += html;
+            });
+        });
+
+    </script>
+</body>
+</html>
